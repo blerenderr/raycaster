@@ -157,21 +157,46 @@ fn update_player_pos(player: &mut Entity, input: &Controls) {
 
 }
 fn cast_rays(canvas: &mut WindowCanvas, player: &Entity) {
-    for i in 0..1 {
+    for _i in 0..1 {
         let start = Point::new(player.ix,player.iy);
-
-        let ray_x: f32; let ray_y: f32; let ray_x_off: f32; let ray_y_off: f32;
-
+        let mut ray_x: f32; let mut ray_y: f32; let ray_x_off: f32; let ray_y_off: f32;
+        let mut dof: u8 = 0;
         let inver_tan: f32 = -1.0/player.angle.tan();
-        if (player.angle < PI) { // looking up
+
+        if player.angle < PI && player.angle > 0.1 { // looking up
             // round the y value to nearest 64
             ray_y = ((player.iy >> 6) << 6) as f32 - 0.0001;
             ray_x = (player.y - ray_y) * inver_tan + player.x;
-
+            ray_y_off = 64.0;
+            ray_x_off = -ray_y_off*inver_tan;
         }
-        else if (player.angle > PI) { // looking down
-
+        else if player.angle > PI && player.angle < 2.0*PI { // looking down
+            ray_y = ((player.iy >> 6) << 6) as f32 + 64.0;
+            ray_x = (player.y - ray_y) * inver_tan + player.x;
+            ray_y_off = 64.0;
+            ray_x_off = -ray_y_off*inver_tan;
         }
+        else {
+            ray_x = player.x;
+            ray_y = player.y;
+            ray_x_off = 0.0;
+            ray_y_off = 0.0;
+            dof = 8;
+        }
+
+        let mut map_x: usize = ray_x as usize >> 6;
+        let mut map_y: usize = ray_y as usize >> 6;
+        if map_x > 7 {map_x = 7;}
+        if map_y > 7 {map_y = 7;}
+
+
+        while dof < 8 {
+            if MAP[map_x][map_y] == 1 { dof = 8;} // wall hit
+            else { ray_x += ray_x_off; ray_y += ray_y_off; dof += 1;}
+        }
+
+        canvas.set_draw_color(Color::RGB(0,255,0));
+        canvas.draw_line(start, Point::new(ray_x as i32,ray_y as i32)).expect("lol");   
     }
 }
 
