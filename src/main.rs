@@ -4,7 +4,6 @@ use sdl2::pixels::Color;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use std::time::Duration;
-// use std::cmp::Ordering;
 use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
 use sdl2::EventPump;
@@ -36,8 +35,10 @@ struct Entity {
 }
 impl Entity {
     fn draw(&self, canvas: &mut WindowCanvas) {
+
         canvas.set_draw_color(Color::RGB(self.color.0,self.color.1,self.color.2));
-        canvas.fill_rect(Rect::new(self.ix,self.iy,self.size,self.size)).expect("lol");
+        canvas.fill_rect(Rect::new(self.ix-(self.size/2) as i32,self.iy-(self.size/2) as i32,self.size,
+                                   self.size)).expect("lol");
     }
     // fn check_collide(&mut self) {
     //     // todo
@@ -46,7 +47,7 @@ impl Entity {
 
 const MAP: [[i16; MAP_SIZE]; MAP_SIZE] = [[1,1,1,1,1,1,1,1],
                                           [1,0,0,0,0,0,0,1],
-                                          [1,0,0,0,0,0,1,1],
+                                          [1,0,0,0,1,1,1,1],
                                           [1,0,0,0,0,0,0,1],
                                           [1,0,0,1,0,0,0,1],
                                           [1,0,0,1,0,0,0,1],
@@ -114,8 +115,8 @@ pub fn main() {
         update_player_pos(&mut player, &input);
 
         draw_world(&mut canvas);
-        player.draw(&mut canvas);
         cast_rays(&mut canvas, &player);
+        player.draw(&mut canvas);
 
 
         canvas.present();
@@ -158,11 +159,13 @@ fn update_player_pos(player: &mut Entity, input: &Controls) {
 }
 fn cast_rays(canvas: &mut WindowCanvas, player: &Entity) {
     
-    for i in -30..=30 {
+    for i in 0..60 {
         let mut ray_x_off: f32 = 0.0; let mut ray_y_off: f32 = 0.0;
         let mut dof: u8 = 0;
         let start = Point::new(player.ix,player.iy);
-        let angle = if player.angle >= 0.0 {player.angle + (i as f32*ONE_DEGREE)} else {player.angle - (i as f32*ONE_DEGREE)};
+        let mut angle = player.angle + (i as f32*ONE_DEGREE) - (30.0*ONE_DEGREE);
+        if angle > 2.0*PI {angle -= 2.0*PI;}
+        if angle < 0.0 {angle += 2.0*PI;}
 
         let inver_tan: f32 = 1.0/angle.tan();
         let mut horiz_ray = Ray {
@@ -184,8 +187,8 @@ fn cast_rays(canvas: &mut WindowCanvas, player: &Entity) {
             ray_y_off = 64.0;
             ray_x_off = -ray_y_off*inver_tan;
         }
-        if (angle > -0.01 && angle < 0.01) || 
-           (angle > PI+0.01 && angle < PI-0.01) {
+        if (angle > -0.00 && angle < 0.00) || 
+           (angle > PI+0.00 && angle < PI-0.00) {
             horiz_ray.x = player.x;
             horiz_ray.y = player.y;
             ray_x_off = 0.0;
@@ -204,8 +207,6 @@ fn cast_rays(canvas: &mut WindowCanvas, player: &Entity) {
             }
         }
         horiz_ray.r = ((player.x - horiz_ray.x).powi(2) + (player.y - horiz_ray.y).powi(2)).sqrt();
-
-
 
         // vertical line check !
         let mut vert_ray = Ray {
@@ -227,8 +228,8 @@ fn cast_rays(canvas: &mut WindowCanvas, player: &Entity) {
             ray_x_off = 64.0;
             ray_y_off = -ray_x_off/inver_tan;
         }
-        if (angle > PI/2.0 - 0.01 && angle < PI/2.0 + 0.01) || 
-           (angle > 3.0*PI/2.0 - 0.01 && angle < 3.0*PI/2.0 + 0.01) {
+        if (angle > PI/2.0 - 0.00 && angle < PI/2.0 + 0.00) || 
+           (angle > 3.0*PI/2.0 - 0.00 && angle < 3.0*PI/2.0 + 0.00) {
             vert_ray.x = player.x;
             vert_ray.y = player.y;
             ray_x_off = 0.0;
