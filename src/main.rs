@@ -4,19 +4,25 @@ use sdl2::pixels::Color;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use std::time::Duration;
-
+// use std::cmp::Ordering;
 use sdl2::rect::Rect;
 use sdl2::render::WindowCanvas;
 use sdl2::EventPump;
 use sdl2::rect::Point;
 
 const MOVEMENT_SPEED: f32 = 2.0;
-const PI: f32 = 3.14159265259;
+const PI: f32 = 3.14159265;
 const ONE_DEGREE: f32 = PI/180.0;
 
 const SCREEN_WIDTH: u32 = 512;
 const SCREEN_HEIGHT: u32 = 512;
 const MAP_SIZE: usize = 8;
+
+struct Ray {
+    x: f32,
+    y: f32,
+    r: f32,
+}
 
 #[derive(Debug)]
 struct Entity {
@@ -33,18 +39,18 @@ impl Entity {
         canvas.set_draw_color(Color::RGB(self.color.0,self.color.1,self.color.2));
         canvas.fill_rect(Rect::new(self.ix,self.iy,self.size,self.size)).expect("lol");
     }
-    fn check_collide(&mut self) {
-        // todo
-    }
+    // fn check_collide(&mut self) {
+    //     // todo
+    // }
 }
 
 const MAP: [[i16; MAP_SIZE]; MAP_SIZE] = [[1,1,1,1,1,1,1,1],
                                           [1,0,0,0,0,0,0,1],
+                                          [1,0,0,0,0,0,1,1],
                                           [1,0,0,0,0,0,0,1],
-                                          [1,0,0,0,0,0,0,1],
-                                          [1,0,0,0,0,0,0,1],
-                                          [1,0,0,0,0,0,0,1],
-                                          [1,0,0,0,0,0,0,1],
+                                          [1,0,0,1,0,0,0,1],
+                                          [1,0,0,1,0,0,0,1],
+                                          [1,0,0,1,0,0,0,1],
                                           [1,1,1,1,1,1,1,1],];
 // obviously this will break if `MAP_SIZE` is changed to something other than 8.
 
@@ -83,7 +89,7 @@ pub fn main() {
         y: 128.0,
         ix: 128,
         iy: 128,
-        angle: 0.0,
+        angle: PI/2.0,
         color: (255,0,0),
         size: 8,
 
@@ -113,7 +119,7 @@ pub fn main() {
 
 
         canvas.present();
-        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
+        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 30)); // 30 times a sec i think
     }
 }
 
@@ -121,11 +127,11 @@ fn update_player_pos(player: &mut Entity, input: &Controls) {
     let mut changed = false;
 
     if input.left {
-        player.angle += ONE_DEGREE;
+        player.angle += ONE_DEGREE*2.0;
         changed = true;
     }
     if input.right {
-        player.angle -= ONE_DEGREE;
+        player.angle -= ONE_DEGREE*2.0;
         changed = true;
     }
 
@@ -141,62 +147,120 @@ fn update_player_pos(player: &mut Entity, input: &Controls) {
     }
 
 
-    if player.angle > 2.0*PI {
-        player.angle = 0.0;
-    }
-    if player.angle < 0.0 {
-        player.angle = 2.0*PI;
-    }
+    if player.angle > 2.0*PI {player.angle = 0.0;}
+    if player.angle < 0.0 {player.angle = 2.0*PI;}
 
     player.ix = player.x as i32;
     player.iy = player.y as i32;
 
-    if changed {
-        println!("{:?}", player);
-    }
+    if changed {println!("{:?}", player);}
 
 }
 fn cast_rays(canvas: &mut WindowCanvas, player: &Entity) {
-    for _i in 0..1 {
-        let start = Point::new(player.ix,player.iy);
-        let mut ray_x: f32; let mut ray_y: f32; let ray_x_off: f32; let ray_y_off: f32;
+    
+    for i in -30..=30 {
+        let mut ray_x_off: f32 = 0.0; let mut ray_y_off: f32 = 0.0;
         let mut dof: u8 = 0;
-        let inver_tan: f32 = -1.0/player.angle.tan();
+        let start = Point::new(player.ix,player.iy);
+        let angle = if player.angle >= 0.0 {player.angle + (i as f32*ONE_DEGREE)} else {player.angle - (i as f32*ONE_DEGREE)};
 
-        if player.angle < PI && player.angle > 0.1 { // looking up
+        let inver_tan: f32 = 1.0/angle.tan();
+        let mut horiz_ray = Ray {
+            x: 0.0,
+            y: 0.0,
+            r: 0.0,
+        };
+
+        if angle < PI { // looking up
             // round the y value to nearest 64
-            ray_y = ((player.iy >> 6) << 6) as f32 - 0.0001;
-            ray_x = (player.y - ray_y) * inver_tan + player.x;
+            horiz_ray.y = ((player.iy >> 6) << 6) as f32 - 0.0001;
+            horiz_ray.x = (player.y - horiz_ray.y) * inver_tan + player.x;
+            ray_y_off = -64.0;
+            ray_x_off = -ray_y_off*inver_tan;
+        }
+        if angle > PI { // looking down
+            horiz_ray.y = ((player.iy >> 6) << 6) as f32 + 64.0;
+            horiz_ray.x = (player.y - horiz_ray.y) * inver_tan + player.x;
             ray_y_off = 64.0;
             ray_x_off = -ray_y_off*inver_tan;
         }
-        else if player.angle > PI && player.angle < 2.0*PI { // looking down
-            ray_y = ((player.iy >> 6) << 6) as f32 + 64.0;
-            ray_x = (player.y - ray_y) * inver_tan + player.x;
-            ray_y_off = 64.0;
-            ray_x_off = -ray_y_off*inver_tan;
-        }
-        else {
-            ray_x = player.x;
-            ray_y = player.y;
+        if (angle > -0.01 && angle < 0.01) || 
+           (angle > PI+0.01 && angle < PI-0.01) {
+            horiz_ray.x = player.x;
+            horiz_ray.y = player.y;
             ray_x_off = 0.0;
             ray_y_off = 0.0;
             dof = 8;
         }
 
-        let mut map_x: usize = ray_x as usize >> 6;
-        let mut map_y: usize = ray_y as usize >> 6;
-        if map_x > 7 {map_x = 7;}
-        if map_y > 7 {map_y = 7;}
-
-
         while dof < 8 {
-            if MAP[map_x][map_y] == 1 { dof = 8;} // wall hit
-            else { ray_x += ray_x_off; ray_y += ray_y_off; dof += 1;}
+            let map_x: usize = horiz_ray.x as usize >> 6;
+            let map_y: usize = horiz_ray.y as usize >> 6;
+            if map_x <= 7 && map_y <= 7 && MAP[map_y][map_x] == 1 {
+                dof = 8;
+            } // wall hit
+            else {
+                horiz_ray.x += ray_x_off; horiz_ray.y += ray_y_off; dof += 1;
+            }
+        }
+        horiz_ray.r = ((player.x - horiz_ray.x).powi(2) + (player.y - horiz_ray.y).powi(2)).sqrt();
+
+
+
+        // vertical line check !
+        let mut vert_ray = Ray {
+            x: 0.0,
+            y: 0.0,
+            r: 0.0,
+        };
+        ray_x_off = 0.0; ray_y_off = 0.0; dof = 0;
+        if angle > PI/2.0 && angle < 3.0*PI/2.0 { // looking left
+            // round x to the nearest 64
+            vert_ray.x = ((player.ix >> 6) << 6) as f32 - 0.0001;
+            vert_ray.y = (player.x - vert_ray.x) / inver_tan + player.y;
+            ray_x_off = -64.0;
+            ray_y_off = -ray_x_off/inver_tan;
+        }
+        if angle < PI/2.0 || angle > 3.0*PI/2.0 { // looking right
+            vert_ray.x = ((player.ix >> 6) << 6) as f32 + 64.0;
+            vert_ray.y = (player.x - vert_ray.x) / inver_tan + player.y;
+            ray_x_off = 64.0;
+            ray_y_off = -ray_x_off/inver_tan;
+        }
+        if (angle > PI/2.0 - 0.01 && angle < PI/2.0 + 0.01) || 
+           (angle > 3.0*PI/2.0 - 0.01 && angle < 3.0*PI/2.0 + 0.01) {
+            vert_ray.x = player.x;
+            vert_ray.y = player.y;
+            ray_x_off = 0.0;
+            ray_y_off = 0.0;
+            dof = 8;
         }
 
+        while dof < 8 {
+            let map_x: usize = vert_ray.x as usize >> 6;
+            let map_y: usize = vert_ray.y as usize >> 6;
+            if map_x <= 7 && map_y <= 7 && MAP[map_y][map_x] == 1 {
+                dof = 8;
+            } // wall hit
+            else {
+                vert_ray.x += ray_x_off; vert_ray.y += ray_y_off; dof += 1;
+            }
+        }
+        vert_ray.r = ((player.x - vert_ray.x).powi(2) + (player.y - vert_ray.y).powi(2)).sqrt();
+
         canvas.set_draw_color(Color::RGB(0,255,0));
-        canvas.draw_line(start, Point::new(ray_x as i32,ray_y as i32)).expect("lol");   
+
+        if horiz_ray.r < vert_ray.r {
+            canvas.draw_line(start, Point::new(horiz_ray.x as i32,horiz_ray.y as i32)).expect("lol");
+        }
+        else {
+            canvas.draw_line(start, Point::new(vert_ray.x as i32,vert_ray.y as i32)).expect("lol");
+        }
+
+
+
+
+
     }
 }
 
