@@ -64,10 +64,12 @@ const MAP: [[i16; MAP_SIZE]; MAP_SIZE] = [[1,1,1,1,1,1,1,1],
 
 
 struct Controls {
-    up: bool,
-    down: bool,
-    left: bool,
-    right: bool,
+    foreward: bool,
+    backward: bool,
+    sleft: bool,
+    sright: bool,
+    tleft: bool,
+    tright: bool
 }
 
 pub fn main() {
@@ -113,10 +115,12 @@ pub fn main() {
     };
 
     let mut input = Controls {
-        up: false,
-        down: false,
-        left: false,
-        right: false,
+        foreward: false,
+        backward: false,
+        sleft: false,
+        sright: false,
+        tleft: false,
+        tright: false
     };
 
     'running: loop {
@@ -147,23 +151,34 @@ pub fn main() {
 fn update_player_pos(player: &mut Entity, input: &Controls) {
     let mut changed = false;
 
-    if input.left {
+    if input.tleft {
         player.angle += ONE_DEGREE*2.0;
         changed = true;
     }
-    if input.right {
+    if input.tright {
         player.angle -= ONE_DEGREE*2.0;
         changed = true;
     }
 
-    if input.up {
+    if input.foreward {
         player.y += MOVEMENT_SPEED * (player.angle + HALF_PI).cos();
         player.x += MOVEMENT_SPEED * (player.angle + HALF_PI).sin();
         changed = true;
     }
-    if input.down {
+    if input.backward {
         player.y -= MOVEMENT_SPEED * (player.angle + HALF_PI).cos();
         player.x -= MOVEMENT_SPEED * (player.angle + HALF_PI).sin();
+        changed = true;
+    }
+
+    if input.sleft {
+        player.y += MOVEMENT_SPEED * (player.angle + HALF_PI + 90.0*ONE_DEGREE).cos();
+        player.x += MOVEMENT_SPEED * (player.angle + HALF_PI + 90.0*ONE_DEGREE).sin();
+        changed = true;
+    }
+    if input.sright {
+        player.y += MOVEMENT_SPEED * (player.angle + HALF_PI - 90.0*ONE_DEGREE).cos();
+        player.x += MOVEMENT_SPEED * (player.angle + HALF_PI - 90.0*ONE_DEGREE).sin();
         changed = true;
     }
 
@@ -336,32 +351,48 @@ fn check_keys(event_pump: &mut EventPump, input: &mut Controls) -> bool {
             },
 
             Event::KeyDown { keycode: Some(Keycode::W), .. } => {
-                input.up = true;
+                input.foreward = true;
             },
             Event::KeyUp { keycode: Some(Keycode::W), .. } => {
-                input.up = false;
+                input.foreward = false;
             },
 
             Event::KeyDown { keycode: Some(Keycode::S), .. } => {
-                input.down = true;
+                input.backward = true;
             },
             Event::KeyUp { keycode: Some(Keycode::S), .. } => {
-                input.down = false;
+                input.backward = false;
+            },
+
+            Event::KeyDown { keycode: Some(Keycode::A), .. } => {
+                input.sleft = true;
+            },
+            Event::KeyUp { keycode: Some(Keycode::A), .. } => {
+                input.sleft = false;
+            },
+
+            Event::KeyDown { keycode: Some(Keycode::D), .. } => {
+                input.sright = true;
+            },
+            Event::KeyUp { keycode: Some(Keycode::D), .. } => {
+                input.sright = false;
             },
 
             Event::KeyDown { keycode: Some(Keycode::Left), .. } => {
-                input.left = true;
+                input.tleft = true;
             },
             Event::KeyUp { keycode: Some(Keycode::Left), .. } => {
-                input.left = false;
+                input.tleft = false;
             },
 
             Event::KeyDown { keycode: Some(Keycode::Right), .. } => {
-                input.right = true;
+                input.tright = true;
             },
             Event::KeyUp { keycode: Some(Keycode::Right), .. } => {
-                input.right = false;
+                input.tright = false;
             },
+
+            
             _ => {}
         }
     }
