@@ -11,11 +11,18 @@ use sdl2::rect::Point;
 
 const MOVEMENT_SPEED: f32 = 2.0;
 const PI: f32 = 3.14159265;
+const HALF_PI: f32 = PI/2.0;
+const TWO_PI: f32 = 2.0*PI;
+const THREEHALFS_PI: f32 = 3.0*PI/2.0;
 const ONE_DEGREE: f32 = PI/180.0;
 
 const SCREEN_WIDTH: u32 = 512;
 const SCREEN_HEIGHT: u32 = 512;
 const MAP_SIZE: usize = 8;
+const FOV: u32 = 60;
+
+const FP_SCREEN_WIDTH: u32 = 960;
+const FP_SCREEN_HEIGHT: u32 = 720;
 
 struct Ray {
     x: f32,
@@ -47,13 +54,14 @@ impl Entity {
 
 const MAP: [[i16; MAP_SIZE]; MAP_SIZE] = [[1,1,1,1,1,1,1,1],
                                           [1,0,0,0,0,0,0,1],
-                                          [1,0,0,0,1,1,1,1],
                                           [1,0,0,0,0,0,0,1],
-                                          [1,0,0,1,0,0,0,1],
-                                          [1,0,0,1,0,0,0,1],
-                                          [1,0,0,1,0,0,0,1],
+                                          [1,0,0,0,0,0,0,1],
+                                          [1,0,1,0,0,1,0,1],
+                                          [1,0,1,0,0,0,0,1],
+                                          [1,0,1,0,0,0,0,1],
                                           [1,1,1,1,1,1,1,1],];
 // obviously this will break if `MAP_SIZE` is changed to something other than 8.
+
 
 struct Controls {
     up: bool,
@@ -72,25 +80,33 @@ pub fn main() {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
 
-    let window = video_subsystem.window("top-down", SCREEN_WIDTH, SCREEN_HEIGHT)
+    let window1 = video_subsystem.window("top-down", SCREEN_WIDTH, SCREEN_HEIGHT)
         .position_centered()
         .build()
         .unwrap();
+    let window2 = video_subsystem.window("first-person",FP_SCREEN_WIDTH, FP_SCREEN_HEIGHT)
+        .position(0, 0)
+        .build()
+        .unwrap();
 
-    let mut canvas = window.into_canvas().build().unwrap();
+    let mut canvas1 = window1.into_canvas().build().unwrap();
+    let mut canvas2 = window2.into_canvas().build().unwrap();
 
-    canvas.set_draw_color(Color::RGB(0, 255, 255));
-    canvas.clear();
-    canvas.present();
+    canvas1.set_draw_color(Color::RGB(0, 255, 255));
+    canvas1.clear();
+    canvas1.present();
+    canvas2.set_draw_color(Color::RGB(0, 255, 255));
+    canvas2.clear();
+    canvas2.present();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
     // ix is an integer rounding of float x
     let mut player = Entity {
-        x: 128.0,
-        y: 128.0,
-        ix: 128,
-        iy: 128,
-        angle: PI/2.0,
+        x: 256.0,
+        y: 256.0,
+        ix: 256,
+        iy: 256,
+        angle: HALF_PI,
         color: (255,0,0),
         size: 8,
 
@@ -104,8 +120,10 @@ pub fn main() {
     };
 
     'running: loop {
-        canvas.set_draw_color(Color::RGB(0, 0, 0));
-        canvas.clear();
+        canvas1.set_draw_color(Color::RGB(0, 0, 0));
+        canvas1.clear();
+        canvas2.set_draw_color(Color::RGB(0, 0, 0));
+        canvas2.clear();
 
         // player.check_collide();
 
@@ -114,13 +132,15 @@ pub fn main() {
         }
         update_player_pos(&mut player, &input);
 
-        draw_world(&mut canvas);
-        cast_rays(&mut canvas, &player);
-        player.draw(&mut canvas);
+        draw_world(&mut canvas1);
+        cast_rays(&mut canvas1, &mut canvas2, &player);
+        player.draw(&mut canvas1);
 
 
-        canvas.present();
-        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 30)); // 30 times a sec i think
+        canvas1.present();
+        canvas2.present();
+
+        ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
     }
 }
 
@@ -137,19 +157,19 @@ fn update_player_pos(player: &mut Entity, input: &Controls) {
     }
 
     if input.up {
-        player.y += MOVEMENT_SPEED * (player.angle + PI/2.0).cos();
-        player.x += MOVEMENT_SPEED * (player.angle + PI/2.0).sin();
+        player.y += MOVEMENT_SPEED * (player.angle + HALF_PI).cos();
+        player.x += MOVEMENT_SPEED * (player.angle + HALF_PI).sin();
         changed = true;
     }
     if input.down {
-        player.y -= MOVEMENT_SPEED * (player.angle + PI/2.0).cos();
-        player.x -= MOVEMENT_SPEED * (player.angle + PI/2.0).sin();
+        player.y -= MOVEMENT_SPEED * (player.angle + HALF_PI).cos();
+        player.x -= MOVEMENT_SPEED * (player.angle + HALF_PI).sin();
         changed = true;
     }
 
 
-    if player.angle > 2.0*PI {player.angle = 0.0;}
-    if player.angle < 0.0 {player.angle = 2.0*PI;}
+    if player.angle > TWO_PI {player.angle = 0.0;}
+    if player.angle < 0.0 {player.angle = TWO_PI;}
 
     player.ix = player.x as i32;
     player.iy = player.y as i32;
@@ -157,15 +177,15 @@ fn update_player_pos(player: &mut Entity, input: &Controls) {
     if changed {println!("{:?}", player);}
 
 }
-fn cast_rays(canvas: &mut WindowCanvas, player: &Entity) {
+fn cast_rays(canvas: &mut WindowCanvas, canvas2_ref: &mut WindowCanvas, player: &Entity) {
     
-    for i in 0..60 {
+    for i in 0..FOV {
         let mut ray_x_off: f32 = 0.0; let mut ray_y_off: f32 = 0.0;
         let mut dof: u8 = 0;
         let start = Point::new(player.ix,player.iy);
-        let mut angle = player.angle + (i as f32*ONE_DEGREE) - (30.0*ONE_DEGREE);
-        if angle > 2.0*PI {angle -= 2.0*PI;}
-        if angle < 0.0 {angle += 2.0*PI;}
+        let mut angle = player.angle + (i as f32*ONE_DEGREE) - ((FOV/2) as f32*ONE_DEGREE);
+        if angle > TWO_PI {angle -= TWO_PI;}
+        if angle < 0.0 {angle += TWO_PI;}
 
         let inver_tan: f32 = 1.0/angle.tan();
         let mut horiz_ray = Ray {
@@ -215,21 +235,21 @@ fn cast_rays(canvas: &mut WindowCanvas, player: &Entity) {
             r: 0.0,
         };
         ray_x_off = 0.0; ray_y_off = 0.0; dof = 0;
-        if angle > PI/2.0 && angle < 3.0*PI/2.0 { // looking left
+        if angle > HALF_PI && angle < THREEHALFS_PI { // looking left
             // round x to the nearest 64
             vert_ray.x = ((player.ix >> 6) << 6) as f32 - 0.0001;
             vert_ray.y = (player.x - vert_ray.x) / inver_tan + player.y;
             ray_x_off = -64.0;
             ray_y_off = -ray_x_off/inver_tan;
         }
-        if angle < PI/2.0 || angle > 3.0*PI/2.0 { // looking right
+        if angle < HALF_PI || angle > THREEHALFS_PI { // looking right
             vert_ray.x = ((player.ix >> 6) << 6) as f32 + 64.0;
             vert_ray.y = (player.x - vert_ray.x) / inver_tan + player.y;
             ray_x_off = 64.0;
             ray_y_off = -ray_x_off/inver_tan;
         }
-        if (angle > PI/2.0 - 0.00 && angle < PI/2.0 + 0.00) || 
-           (angle > 3.0*PI/2.0 - 0.00 && angle < 3.0*PI/2.0 + 0.00) {
+        if (angle > HALF_PI && angle < HALF_PI) || 
+           (angle > THREEHALFS_PI && angle < THREEHALFS_PI) { // floating point weirdness
             vert_ray.x = player.x;
             vert_ray.y = player.y;
             ray_x_off = 0.0;
@@ -253,16 +273,32 @@ fn cast_rays(canvas: &mut WindowCanvas, player: &Entity) {
 
         if horiz_ray.r < vert_ray.r {
             canvas.draw_line(start, Point::new(horiz_ray.x as i32,horiz_ray.y as i32)).expect("lol");
+            project_line(canvas2_ref, &horiz_ray, i.try_into().unwrap(), &angle, player);
         }
         else {
             canvas.draw_line(start, Point::new(vert_ray.x as i32,vert_ray.y as i32)).expect("lol");
+            project_line(canvas2_ref, &vert_ray, i.try_into().unwrap(), &angle, player);
         }
 
-
-
-
-
     }
+}
+
+fn project_line(canvas: &mut WindowCanvas, ray: &Ray, i: u16, angle: &f32, player: &Entity) {
+    let dist = ray.r * (player.angle - angle).cos();
+    let length = (FP_SCREEN_HEIGHT as f32 - dist) as i32;
+    let x: i32 = (FP_SCREEN_WIDTH - (i as u32 * FP_SCREEN_WIDTH/FOV)) as i32;
+    for i in 0..FP_SCREEN_WIDTH/FOV {
+        let mut color_val = 255.0-(ray.r/2.0);
+        if color_val < 0.0 {color_val = 0.0;}
+        if color_val > 255.0 {color_val = 255.0;}
+
+
+        canvas.set_draw_color(Color::RGB(color_val as u8,color_val as u8,255));
+        let start = Point::new(x + i as i32,(720-length)/2);
+        let end = Point::new(x + i as i32,(720-length)/2+length);
+        canvas.draw_line(start, end).expect("lol");
+    }
+
 }
 
 fn draw_world(canvas: &mut WindowCanvas) {
@@ -271,7 +307,6 @@ fn draw_world(canvas: &mut WindowCanvas) {
     let mut square_pos_y: i32 = 0;
     for r in MAP {
         for c in r {
-            // println!("{square_pos_x}, {square_pos_y}");
             if square_pos_x >= SCREEN_WIDTH as i32 {
                 square_pos_x = 0;
             }
@@ -291,6 +326,7 @@ fn draw_world(canvas: &mut WindowCanvas) {
 }
 
 
+
 fn check_keys(event_pump: &mut EventPump, input: &mut Controls) -> bool {
     for event in event_pump.poll_iter() {
         match event {
@@ -299,17 +335,17 @@ fn check_keys(event_pump: &mut EventPump, input: &mut Controls) -> bool {
                 return true;
             },
 
-            Event::KeyDown { keycode: Some(Keycode::Up), .. } => {
+            Event::KeyDown { keycode: Some(Keycode::W), .. } => {
                 input.up = true;
             },
-            Event::KeyUp { keycode: Some(Keycode::Up), .. } => {
+            Event::KeyUp { keycode: Some(Keycode::W), .. } => {
                 input.up = false;
             },
 
-            Event::KeyDown { keycode: Some(Keycode::Down), .. } => {
+            Event::KeyDown { keycode: Some(Keycode::S), .. } => {
                 input.down = true;
             },
-            Event::KeyUp { keycode: Some(Keycode::Down), .. } => {
+            Event::KeyUp { keycode: Some(Keycode::S), .. } => {
                 input.down = false;
             },
 
