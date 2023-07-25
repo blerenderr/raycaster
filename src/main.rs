@@ -64,7 +64,7 @@ const MAP: [[i16; MAP_SIZE]; MAP_SIZE] = [[1,1,1,1,1,1,1,1],
 
 
 struct Controls {
-    foreward: bool,
+    forward: bool,
     backward: bool,
     sleft: bool,
     sright: bool,
@@ -115,7 +115,7 @@ pub fn main() {
     };
 
     let mut input = Controls {
-        foreward: false,
+        forward: false,
         backward: false,
         sleft: false,
         sright: false,
@@ -152,15 +152,15 @@ fn update_player_pos(player: &mut Entity, input: &Controls) {
     let mut changed = false;
 
     if input.tleft {
-        player.angle += ONE_DEGREE*2.0;
+        player.angle += ONE_DEGREE*1.0;
         changed = true;
     }
     if input.tright {
-        player.angle -= ONE_DEGREE*2.0;
+        player.angle -= ONE_DEGREE*1.0;
         changed = true;
     }
 
-    if input.foreward {
+    if input.forward {
         player.y += MOVEMENT_SPEED * (player.angle + HALF_PI).cos();
         player.x += MOVEMENT_SPEED * (player.angle + HALF_PI).sin();
         changed = true;
@@ -351,10 +351,10 @@ fn check_keys(event_pump: &mut EventPump, input: &mut Controls) -> bool {
             },
 
             Event::KeyDown { keycode: Some(Keycode::W), .. } => {
-                input.foreward = true;
+                input.forward = true;
             },
             Event::KeyUp { keycode: Some(Keycode::W), .. } => {
-                input.foreward = false;
+                input.forward = false;
             },
 
             Event::KeyDown { keycode: Some(Keycode::S), .. } => {
