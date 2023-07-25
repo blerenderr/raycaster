@@ -152,11 +152,11 @@ fn update_player_pos(player: &mut Entity, input: &Controls) {
     let mut changed = false;
 
     if input.tleft {
-        player.angle += ONE_DEGREE*1.0;
+        player.angle += ONE_DEGREE*1.5;
         changed = true;
     }
     if input.tright {
-        player.angle -= ONE_DEGREE*1.0;
+        player.angle -= ONE_DEGREE*1.5;
         changed = true;
     }
 
