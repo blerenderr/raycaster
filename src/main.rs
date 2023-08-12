@@ -41,8 +41,10 @@ struct Entity {
     size: u32,
 }
 impl Entity {
+    /*
+    Takes a mutable ref to the window canvas and draws the Entity according to its specs
+    */
     fn draw(&self, canvas: &mut WindowCanvas) {
-
         canvas.set_draw_color(Color::RGB(self.color.0,self.color.1,self.color.2));
         canvas.fill_rect(Rect::new(self.ix-(self.size/2) as i32,self.iy-(self.size/2) as i32,self.size,
                                    self.size)).expect("lol");
@@ -63,6 +65,10 @@ const MAP: [[i16; MAP_SIZE]; MAP_SIZE] = [[1,1,1,1,1,1,1,1],
 // obviously this will break if `MAP_SIZE` is changed to something other than 8.
 
 
+/*
+prefix 's' means strafe. prefix 't' means turn. probably could be more coherent
+but i dont care (surprising)
+*/
 struct Controls {
     forward: bool,
     backward: bool,
@@ -123,6 +129,7 @@ pub fn main() {
         tright: false
     };
 
+    // main loop
     'running: loop {
         canvas1.set_draw_color(Color::RGB(0, 0, 0));
         canvas1.clear();
@@ -131,6 +138,7 @@ pub fn main() {
 
         // player.check_collide();
 
+        // check_keys returns true if the user hits esc.
         if check_keys(&mut event_pump, &mut input) {
             break 'running
         }
@@ -286,13 +294,22 @@ fn cast_rays(canvas: &mut WindowCanvas, canvas2_ref: &mut WindowCanvas, player: 
 
         canvas.set_draw_color(Color::RGB(0,255,0));
 
+        // if horiz_ray.r < vert_ray.r {
+        //     canvas.draw_line(start, Point::new(horiz_ray.x as i32,horiz_ray.y as i32)).expect("lol");
+        //     project_line(canvas2_ref, &horiz_ray, i.try_into().unwrap(), &angle, player);
+        // }
+        // else {
+        //     canvas.draw_line(start, Point::new(vert_ray.x as i32,vert_ray.y as i32)).expect("lol");
+        //     project_line(canvas2_ref, &vert_ray, i.try_into().unwrap(), &angle, player);
+        // }
+
         if horiz_ray.r < vert_ray.r {
             canvas.draw_line(start, Point::new(horiz_ray.x as i32,horiz_ray.y as i32)).expect("lol");
-            project_line(canvas2_ref, &horiz_ray, i.try_into().unwrap(), &angle, player);
+            fp_render(canvas2_ref, &horiz_ray, i.try_into().unwrap(), &angle, player);
         }
         else {
             canvas.draw_line(start, Point::new(vert_ray.x as i32,vert_ray.y as i32)).expect("lol");
-            project_line(canvas2_ref, &vert_ray, i.try_into().unwrap(), &angle, player);
+            fp_render(canvas2_ref, &vert_ray, i.try_into().unwrap(), &angle, player);
         }
 
     }
@@ -303,7 +320,7 @@ fn project_line(canvas: &mut WindowCanvas, ray: &Ray, i: u16, angle: &f32, playe
     // distance (resultant) of the ray, not sure why cosine works
     let dist = ray.r * (player.angle - angle).cos();
     // length of the column on the screen, multiplyer shrinks the viewable space
-    let length = (FP_SCREEN_HEIGHT as f32 * 0.9 - dist) as i32;
+    let length = (FP_SCREEN_HEIGHT as f32 * 1.0 - dist) as i32;
     // x position of the column
     let x: i32 = (FP_SCREEN_WIDTH - (i as u32 * FP_SCREEN_WIDTH/FOV)) as i32;
     // iterate through every column (width/fov) finding the color and drawing the line
@@ -317,6 +334,31 @@ fn project_line(canvas: &mut WindowCanvas, ray: &Ray, i: u16, angle: &f32, playe
         let start = Point::new(x + i as i32,(720-length)/2);
         let end = Point::new(x + i as i32,(720-length)/2+length);
         canvas.draw_line(start, end).expect("lol");
+    }
+
+}
+
+// hopefully new and improved renderer
+fn fp_render(canvas: &mut WindowCanvas, ray: &Ray, i: u16, angle: &f32, player: &Entity) {
+    // distance (resultant) of the ray, not sure why cosine works
+    let dist = ray.r * (player.angle - angle).cos();
+    // length of the column on the screen, multiplyer shrinks the viewable space
+    let length = (FP_SCREEN_HEIGHT as f32 * 1.0 - dist) as i32;
+    // x position of the column pixel
+    let x: i32 = (FP_SCREEN_WIDTH - (i as u32 * FP_SCREEN_WIDTH/FOV)) as i32;
+
+    // basic shading for the rough column
+    let mut color_val = 255.0-(ray.r*0.6);
+    if color_val < 0.0 {color_val = 0.0;}
+    if color_val > 255.0 {color_val = 255.0;}
+    canvas.set_draw_color(Color::RGB(color_val as u8,color_val as u8,255));
+
+    // iteratively draw each pixel column in the rough column
+    for i in 0..FP_SCREEN_WIDTH/FOV {
+        let start = Point::new(x + i as i32,(720-length)/2);
+        let end = Point::new(x + i as i32,(720-length)/2+length);
+        canvas.draw_line(start, end).expect("lol");
+        
     }
 
 }
