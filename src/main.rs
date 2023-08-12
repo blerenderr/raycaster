@@ -19,7 +19,7 @@ const ONE_DEGREE: f32 = PI/180.0;
 const SCREEN_WIDTH: u32 = 512;
 const SCREEN_HEIGHT: u32 = 512;
 const MAP_SIZE: usize = 8;
-const FOV: u32 = 60;
+const FOV: u32 = 60; // 60 works
 
 const FP_SCREEN_WIDTH: u32 = 960;
 const FP_SCREEN_HEIGHT: u32 = 720;
@@ -298,12 +298,17 @@ fn cast_rays(canvas: &mut WindowCanvas, canvas2_ref: &mut WindowCanvas, player: 
     }
 }
 
+// this shit needs to be fixed immediately.
 fn project_line(canvas: &mut WindowCanvas, ray: &Ray, i: u16, angle: &f32, player: &Entity) {
+    // distance (resultant) of the ray, not sure why cosine works
     let dist = ray.r * (player.angle - angle).cos();
-    let length = (FP_SCREEN_HEIGHT as f32 - dist) as i32;
+    // length of the column on the screen, multiplyer shrinks the viewable space
+    let length = (FP_SCREEN_HEIGHT as f32 * 0.9 - dist) as i32;
+    // x position of the column
     let x: i32 = (FP_SCREEN_WIDTH - (i as u32 * FP_SCREEN_WIDTH/FOV)) as i32;
+    // iterate through every column (width/fov) finding the color and drawing the line
     for i in 0..FP_SCREEN_WIDTH/FOV {
-        let mut color_val = 255.0-(ray.r/2.0);
+        let mut color_val = 255.0-(ray.r*0.6);
         if color_val < 0.0 {color_val = 0.0;}
         if color_val > 255.0 {color_val = 255.0;}
 
